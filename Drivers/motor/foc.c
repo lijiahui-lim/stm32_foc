@@ -99,7 +99,7 @@ static float torque_q_loop(float q)
     float error_integral_windup = out_limited - out_unlimited; //  积分饱和误差
     pid_torque_q.state[0] -= (pid_torque_q.Ki * Kt * error_integral_windup);
 
-    return out_unlimited;
+    return out_limited;
 }
 
 void lib_position_control(float rad)

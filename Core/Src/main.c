@@ -16,7 +16,7 @@
  ******************************************************************************
  */
 #if defined(__ARMCC_VERSION) && (__ARMCC_VERSION < 6000000)
-#error "不支持使用 Keil ARM Compiler V5编译器，请使用 Keil ARM Compiler V6编译"
+#error "不支持使用 Keil ARM Compiler V5编译器 请使用 Keil ARM Compiler V6编译"
 #endif
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
@@ -142,13 +142,17 @@ int main(void)
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+  // 【电流模式】
   motor_control_context.torque_norm_d = 0;
   motor_control_context.torque_norm_q = 0.4; // 百分比强度
   motor_control_context.type = control_type_torque;
   HAL_Delay(1000);
-  motor_control_context.position = deg2rad(90);
+
+  // 【位置(角度)模式】
+  motor_control_context.position = deg2rad(90); // 此处认为上电时的角度是0度，若改为编码器零位是0度，则减去d轴强拖前的encoder_angle
   motor_control_context.type = control_type_position;
-  // 速度模式
+
+  // 【速度模式】
   // motor_control_context.speed = 30;       //每秒转30弧度
   // motor_control_context.type = control_type_speed;
   // 理论讲解以及FOC代码逐步实现讲解请前往查看：https://blog.csdn.net/qq570437459/category_12672491.html
