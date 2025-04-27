@@ -133,6 +133,7 @@ int main(void)
   HAL_ADCEx_Calibration_Start(&hadc2);
   HAL_ADCEx_InjectedStart_IT(&hadc1);
   HAL_ADCEx_InjectedStart(&hadc2);
+  encoder_init_angle = encoder_angle;
   set_pwm_duty(0.5, 0, 0); // d轴强拖，形成SVPWM模型中的基础矢量1，即对应转子零度位置
   HAL_Delay(400);          // 保持一会
   rotor_zero_angle = encoder_angle;
@@ -148,8 +149,9 @@ int main(void)
   motor_control_context.type = control_type_torque;
   HAL_Delay(1000);
 
-  // 【位置(角度)模式】
-  motor_control_context.position = deg2rad(90); // 此处认为上电时的角度是0度，若改为编码器零位是0度，则减去d轴强拖前的encoder_angle
+  // 【位置（角度）模式】
+  motor_control_context.position = deg2rad(90); // 上电时的角度当作0度
+  // motor_control_context.position = deg2rad(90) - encoder_init_angle; // 编码器零位当作0度
   motor_control_context.type = control_type_position;
 
   // 【速度模式】
