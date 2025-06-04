@@ -195,7 +195,7 @@ void HAL_SPI_TxRxCpltCallback(SPI_HandleTypeDef *hspi)
       return;
     }
 
-    encoder_angle = 2 * PI * angle_raw / ((1 << 14) - 1);
+    encoder_angle = 2 * PI * angle_raw / (1 << 14);
 
     static float encoder_angle_last = 0;
     /****encoder_angle_last默认值是0，不能用于计算，要先赋值一次****/
