@@ -247,7 +247,7 @@ void HAL_ADCEx_InjectedConvCpltCallback(ADC_HandleTypeDef *hadc)
 {
   if (hadc->Instance == ADC1)
   {
-    float u_1 = ADC_REFERENCE_VOLT * ((float)HAL_ADCEx_InjectedGetValue(&hadc1, ADC_INJECTED_RANK_1) / ((1 << ADC_BITS) - 1) - 0.5);
+    float u_1 = ADC_REFERENCE_VOLT * ((float)HAL_ADCEx_InjectedGetValue(&hadc1, ADC_INJECTED_RANK_1) / ((1 << ADC_BITS) - 1) - 0.5); //-0.5就是-50%
     float u_2 = ADC_REFERENCE_VOLT * ((float)HAL_ADCEx_InjectedGetValue(&hadc2, ADC_INJECTED_RANK_1) / ((1 << ADC_BITS) - 1) - 0.5);
     float i_1 = u_1 / R_SHUNT / OP_GAIN;
     float i_2 = u_2 / R_SHUNT / OP_GAIN;

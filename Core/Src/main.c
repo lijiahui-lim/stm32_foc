@@ -122,7 +122,7 @@ int main(void)
       1.2, 0.02, 0);
 
   extern uint8_t mt6701_rx_data[3];
-  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_RESET); // 磁编码器mt6701 SPI的片选引脚
   HAL_SPI_TransmitReceive_DMA(&hspi1, mt6701_rx_data, mt6701_rx_data, 3);
   HAL_Delay(10); // 延时一会，让角度变量被赋值，不然默认角度是0
   HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
@@ -157,10 +157,11 @@ int main(void)
   // 【速度模式】
   // motor_control_context.speed = 30;       //每秒转30弧度
   // motor_control_context.type = control_type_speed;
+
   // 理论讲解以及FOC代码逐步实现讲解请前往查看：https://blog.csdn.net/qq570437459/category_12672491.html
   while (1)
   {
-    printf("%.3f\n", motor_logic_angle);
+    printf("%.3f\n", rad2deg(motor_logic_angle));
     HAL_Delay(100);
     HAL_GPIO_WritePin(GPIOB, GPIO_PIN_15, GPIO_PIN_SET);
     HAL_Delay(100);
