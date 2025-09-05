@@ -133,9 +133,9 @@ int main(void)
   HAL_ADCEx_Calibration_Start(&hadc2);
   HAL_ADCEx_InjectedStart_IT(&hadc1);
   HAL_ADCEx_InjectedStart(&hadc2);
-  encoder_init_angle = encoder_angle;
+  encoder_init_angle = encoder_angle;//记录一下上电时编码器角度
   set_pwm_duty(0.5, 0, 0); // d轴强拖，形成SVPWM模型中的基础矢量1，即对应转子零度位置
-  HAL_Delay(400);          // 保持一会
+  HAL_Delay(400);          // 保持一会，此时要保证电机处于供电状态
   rotor_zero_angle = encoder_angle;
   set_pwm_duty(0, 0, 0); // 松开电机
   HAL_Delay(100);
