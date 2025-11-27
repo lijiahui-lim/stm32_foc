@@ -45,7 +45,9 @@ static void svpwm(float phi, float d, float q, float *d_u, float *d_v, float *d_
     *d_w = t_m * v[sector - 1][2] + t_n * v[sector % 6][2] + t_0 / 2;
 }
 
-__attribute__((weak)) void set_pwm_duty(float d_u, float d_v, float d_w)
+void set_pwm_duty(float d_u, float d_v, float d_w) __attribute__((weak));
+void set_pwm_duty(float d_u, float d_v, float d_w)
+// __attribute__((weak)) void set_pwm_duty(float d_u, float d_v, float d_w)
 {
     while (1)
         ;

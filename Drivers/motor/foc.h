@@ -36,4 +36,5 @@ void set_motor_pid(
     float position_p, float position_i, float position_d,
     float speed_p, float speed_i, float speed_d,
     float torque_d_p, float torque_d_i, float torque_d_d,
-    float torque_q_p, float torque_q_i, float torque_q_d);
+    float torque_q_p, float torque_q_i, float torque_q_d
+		);
