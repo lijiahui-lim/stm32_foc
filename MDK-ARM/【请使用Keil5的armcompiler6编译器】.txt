@@ -1,1 +1,0 @@
-__attribute__((weak))在arm compiler 6编译器中支持，在arm compiler 5编译器中不支持，会造成进入Hard_Fault
