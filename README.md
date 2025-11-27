@@ -1,4 +1,4 @@
-【请使用V6的keil编译器，并开启O3优化等级。】
+【请使用keil V5的arm compiler 6编译器，并开启O3优化等级。】
 
 文档: https://blog.csdn.net/qq570437459/category_12672491
 适配硬件: https://item.taobao.com/item.htm?ft=t&id=839302894720
