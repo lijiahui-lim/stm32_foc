@@ -15,4 +15,6 @@
 #define motor_speed_calc_freq 930 // 电机速度计算频率，Hz
 
 // 软件参数：
-#define position_cycle (6 * PI) // 电机软件上的多圈周期，等于正半周期+负半周期，可以自行修改
+
+// 电机软件上的多圈周期，位置模式下能控制的范围，等于正半周期+负半周期，可以任意修改(比如改为1234*pi)
+#define position_cycle (6 * PI)
