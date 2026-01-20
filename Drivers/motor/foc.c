@@ -71,37 +71,25 @@ static float position_loop(float rad)
 static float speed_loop(float speed_rad)
 {
     float diff = speed_rad - motor_speed;
-    return arm_pid_f32(&pid_speed, diff);
+    float out = arm_pid_f32(&pid_speed, diff);
+    pid_speed.state[2] = fmaxf(fminf(pid_speed.state[2], 1.0f), -1.0f); // 积分溢出截断
+    return out;
 }
 
 static float torque_d_loop(float d)
 {
     float diff = d - motor_i_d / MAX_CURRENT;
-    float out_unlimited = arm_pid_f32(&pid_torque_d, diff);
-    float out_limited = 0;
-    out_limited = min(out_unlimited, 1);
-    out_limited = max(out_limited, -1);
-
-    float error_integral_windup = out_limited - out_unlimited; //  积分饱和误差
-    float Kt = 0.7f;                                           //  后积分增益 (Anti-windup Gain)
-    pid_torque_d.state[0] -= (pid_torque_d.Ki * Kt * error_integral_windup);
-
-    return out_limited;
+    float out = arm_pid_f32(&pid_torque_d, diff);
+    pid_torque_d.state[2] = fmaxf(fminf(pid_torque_d.state[2], 1.0f), -1.0f); // 积分溢出截断
+    return out;
 }
 
 static float torque_q_loop(float q)
 {
     float diff = q - motor_i_q / MAX_CURRENT;
-    float out_unlimited = arm_pid_f32(&pid_torque_q, diff);
-    float out_limited = 0;
-    out_limited = min(out_unlimited, 1);
-    out_limited = max(out_limited, -1);
-
-    float Kt = 0.7f;                                           //  后积分增益 (Anti-windup Gain)
-    float error_integral_windup = out_limited - out_unlimited; //  积分饱和误差
-    pid_torque_q.state[0] -= (pid_torque_q.Ki * Kt * error_integral_windup);
-
-    return out_limited;
+    float out = arm_pid_f32(&pid_torque_q, diff);
+    pid_torque_q.state[2] = fmaxf(fminf(pid_torque_q.state[2], 1.0f), -1.0f); // 积分溢出截断
+    return out;
 }
 
 void lib_position_control(float rad)
