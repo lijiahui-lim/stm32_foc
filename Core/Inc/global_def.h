@@ -1,6 +1,6 @@
 #pragma once
 #ifndef PI
-#define PI 3.14159265358979
+#define PI 3.14159265358979f
 #endif
 #define deg2rad(a) (PI * (a) / 180)
 #define rad2deg(a) (180 * (a) / PI)
