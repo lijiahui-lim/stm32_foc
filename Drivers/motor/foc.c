@@ -390,6 +390,15 @@ void set_motor_pid(
     float torque_q_i_discrete = torque_q_i / motor_control_freq;
     float torque_q_d_discrete = torque_q_d * motor_control_freq;
 
+    // 电流环输出为占空比标幺值，被控对象增益与母线电压成正比；
+    // 按 U_BUS_TUNE/U_BUS 缩放，增益只需在 U_BUS_TUNE 下整定一次。
+    torque_d_p *= U_BUS_SCALE;
+    torque_d_i_discrete *= U_BUS_SCALE;
+    torque_d_d_discrete *= U_BUS_SCALE;
+    torque_q_p *= U_BUS_SCALE;
+    torque_q_i_discrete *= U_BUS_SCALE;
+    torque_q_d_discrete *= U_BUS_SCALE;
+
     pid_position.Kp = position_p;
     pid_position.Ki = position_i_discrete;
     pid_position.Kd = position_d_discrete;
