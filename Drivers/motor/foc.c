@@ -3,20 +3,10 @@
 #include "motor_runtime_param.h"
 #include <stdbool.h>
 #include <math.h>
-#define SQRT3_OVER_2 0.8660254f
-#define INV_SQRT3 0.57735027f
 
 arm_pid_instance_f32 pid_position;
 arm_pid_instance_f32 pid_speed;
-arm_pid_instance_f32 pid_torque_d;
-arm_pid_instance_f32 pid_torque_q;
-static arm_pid_instance_f32 pid_align_alpha;
-static arm_pid_instance_f32 pid_align_beta;
 volatile motor_control_context_t motor_control_context;
-static float cached_rotor_rad;
-static float cached_sin;
-static float cached_cos;
-static bool cached_trig_valid;
 
 #define PID_GAIN_SHIFT 12
 #define Q15_ONE 32767
@@ -155,72 +145,6 @@ static float limited_pid(arm_pid_instance_f32 *pid, float error, float limit)
     return out;
 }
 
-void foc_update_rotor_trig(float rotor_rad, float *sin_value, float *cos_value)
-{
-    cached_rotor_rad = rotor_rad;
-    cached_sin = arm_sin_f32(rotor_rad);
-    cached_cos = arm_cos_f32(rotor_rad);
-    cached_trig_valid = true;
-    *sin_value = cached_sin;
-    *cos_value = cached_cos;
-}
-
-static void svpwm(float sin_phi, float cos_phi, float d, float q,
-                  float *d_u, float *d_v, float *d_w)
-{
-    float alpha = 0.0f;
-    float beta = 0.0f;
-    arm_inv_park_f32(d, q, &alpha, &beta, sin_phi, cos_phi);
-
-    // 等价的零序注入SVPWM，省去扇区判断、平方根和四次三角函数。
-    float phase_u = alpha;
-    float phase_v = -0.5f * alpha + SQRT3_OVER_2 * beta;
-    float phase_w = -0.5f * alpha - SQRT3_OVER_2 * beta;
-    float highest = fmaxf(phase_u, fmaxf(phase_v, phase_w));
-    float lowest = fminf(phase_u, fminf(phase_v, phase_w));
-    float common = 0.5f * (highest + lowest);
-
-    *d_u = 0.5f + (phase_u - common) * INV_SQRT3;
-    *d_v = 0.5f + (phase_v - common) * INV_SQRT3;
-    *d_w = 0.5f + (phase_w - common) * INV_SQRT3;
-}
-
-void set_pwm_duty(float d_u, float d_v, float d_w) __attribute__((weak));
-void set_pwm_duty(float d_u, float d_v, float d_w)
-// __attribute__((weak)) void set_pwm_duty(float d_u, float d_v, float d_w)
-{
-    while (1)
-        ;
-}
-
-void set_pwm_duty_q15(uint16_t d_u, uint16_t d_v, uint16_t d_w) __attribute__((weak));
-void set_pwm_duty_q15(uint16_t d_u, uint16_t d_v, uint16_t d_w)
-{
-    while (1)
-        ;
-}
-
-void foc_forward(float d, float q, float rotor_rad)
-{
-    float sin_phi;
-    float cos_phi;
-    if (cached_trig_valid && rotor_rad == cached_rotor_rad)
-    {
-        sin_phi = cached_sin;
-        cos_phi = cached_cos;
-    }
-    else
-    {
-        sin_phi = arm_sin_f32(rotor_rad);
-        cos_phi = arm_cos_f32(rotor_rad);
-    }
-    float d_u = 0;
-    float d_v = 0;
-    float d_w = 0;
-    svpwm(sin_phi, cos_phi, d, q, &d_u, &d_v, &d_w);
-    set_pwm_duty(d_u, d_v, d_w);
-}
-
 static float position_loop(float rad)
 {
     float diff = cycle_diff(rad - motor_logic_angle, position_cycle);
@@ -231,61 +155,6 @@ static float speed_loop(float speed_rad, float out_limit)
 {
     float diff = speed_rad - motor_speed;
     return limited_pid(&pid_speed, diff, fmaxf(0.0f, fminf(out_limit, 1.0f)));
-}
-
-static float torque_d_loop(float d)
-{
-    float diff = d - motor_i_d / MAX_CURRENT;
-    return limited_pid(&pid_torque_d, diff, 1.0f);
-}
-
-static float torque_q_loop(float q)
-{
-    float diff = q - motor_i_q / MAX_CURRENT;
-    return limited_pid(&pid_torque_q, diff, 1.0f);
-}
-
-void lib_position_control(float rad)
-{
-    float d = 0;
-    float q = position_loop(rad);
-    foc_forward(d, q, rotor_logic_angle);
-}
-
-void lib_speed_control(float speed)
-{
-    float d = 0;
-    float q = speed_loop(speed, 1.0f);
-    foc_forward(d, q, rotor_logic_angle);
-}
-
-void lib_torque_control(float torque_norm_d, float torque_norm_q)
-{
-    float d = torque_d_loop(torque_norm_d);
-    float q = torque_q_loop(torque_norm_q);
-    foc_forward(d, q, rotor_logic_angle);
-}
-
-void lib_speed_torque_control(float speed_rad, float max_torque_norm)
-{
-    float torque_norm = speed_loop(speed_rad, max_torque_norm);
-    lib_torque_control(0, torque_norm);
-}
-
-void lib_position_speed_torque_control(float position_rad, float max_speed_rad, float max_torque_norm)
-{
-    float speed_rad = position_loop(position_rad);
-    speed_rad = fmaxf(-max_speed_rad, fminf(speed_rad, max_speed_rad));
-    lib_speed_torque_control(speed_rad, max_torque_norm);
-}
-
-void lib_align_control(float current_norm, float i_alpha, float i_beta)
-{
-    // 尚未测得转子零位时，在静止的定子坐标系闭环施加alpha轴电流。
-    float target = fmaxf(0.0f, fminf(current_norm, 1.0f));
-    float alpha_voltage = limited_pid(&pid_align_alpha, target - i_alpha / MAX_CURRENT, 0.5f);
-    float beta_voltage = limited_pid(&pid_align_beta, -i_beta / MAX_CURRENT, 0.5f);
-    foc_forward(alpha_voltage, beta_voltage, 0.0f);
 }
 
 void motor_control_fixed(int16_t i_alpha, int16_t i_beta,
@@ -407,27 +276,8 @@ void set_motor_pid(
     pid_speed.Ki = speed_i_discrete;
     pid_speed.Kd = speed_d_discrete;
 
-    pid_torque_d.Kp = torque_d_p;
-    pid_torque_d.Ki = torque_d_i_discrete;
-    pid_torque_d.Kd = torque_d_d_discrete;
-
-    pid_torque_q.Kp = torque_q_p;
-    pid_torque_q.Ki = torque_q_i_discrete;
-    pid_torque_q.Kd = torque_q_d_discrete;
-
-    pid_align_alpha.Kp = torque_d_p;
-    pid_align_alpha.Ki = torque_d_i_discrete;
-    pid_align_alpha.Kd = torque_d_d_discrete;
-    pid_align_beta.Kp = torque_q_p;
-    pid_align_beta.Ki = torque_q_i_discrete;
-    pid_align_beta.Kd = torque_q_d_discrete;
-
     arm_pid_init_f32(&pid_position, true);
     arm_pid_init_f32(&pid_speed, true);
-    arm_pid_init_f32(&pid_torque_d, true);
-    arm_pid_init_f32(&pid_torque_q, true);
-    arm_pid_init_f32(&pid_align_alpha, true);
-    arm_pid_init_f32(&pid_align_beta, true);
 
     fixed_pid_init(&pid_torque_d_fixed, torque_d_p,
                    torque_d_i_discrete, torque_d_d_discrete);

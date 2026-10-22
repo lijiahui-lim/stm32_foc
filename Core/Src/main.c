@@ -31,6 +31,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include <stdio.h>
+#include <stdbool.h>
 #include "motor/motor_runtime_param.h"
 #include "motor/foc.h"
 #include "global_def.h"
@@ -61,7 +62,10 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-
+static inline void iwdg_feed(void)
+{
+  IWDG->KR = 0xAAAAu;
+}
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -234,7 +238,32 @@ int main(void)
   encoder_init_angle = encoder_angle; // 记录一下上电时编码器角度
   motor_control_context.torque_norm_d = MOTOR_ALIGN_CURRENT_A / MAX_CURRENT;
   motor_control_context.type = control_type_align;
-  HAL_Delay(400); // 定子alpha轴限流校零
+  // 定子alpha轴限流校零：至少400ms让转子机械到位，且电流须稳定在
+  // 目标附近50ms以上才记零位；1.5s不收敛说明电流环根本没工作。
+  uint32_t align_start = HAL_GetTick();
+  uint32_t align_settled_since = align_start;
+  bool align_ok = false;
+  while (HAL_GetTick() - align_start < 1500u)
+  {
+    if (motor_fault != MOTOR_FAULT_NONE)
+      Error_Handler();
+    if (fabsf(motor_i_u - MOTOR_ALIGN_CURRENT_A) < 0.05f)
+    {
+      if (HAL_GetTick() - align_settled_since >= 50u &&
+          HAL_GetTick() - align_start >= 400u)
+      {
+        align_ok = true;
+        break;
+      }
+    }
+    else
+    {
+      align_settled_since = HAL_GetTick();
+    }
+    HAL_Delay(5);
+  }
+  if (!align_ok)
+    motor_stop(MOTOR_FAULT_ALIGN);
   if (motor_fault != MOTOR_FAULT_NONE)
     Error_Handler();
   rotor_zero_angle = encoder_angle;
@@ -250,9 +279,23 @@ int main(void)
   motor_control_context.speed = 0.0f;
   motor_control_context.max_torque_norm = MOTOR_RUN_CURRENT_A / MAX_CURRENT;
   motor_control_context.type = control_type_speed_torque;
+  // 独立看门狗：主循环每~200ms喂一次，固件跑飞约1s后复位并切断PWM输出。
+  // 调试器halt内核时冻结计数，避免SWD监控触发复位。IWDG启动后由硬件自动开LSI。
+  __HAL_DBGMCU_FREEZE_IWDG();
+  // 必须先启动看门狗：F1的LSI由IWDG启动时硬件强制开启，先写PR/RLR再等待
+  // 会因LSI未起振使SR同步位永远置位而卡死。
+  IWDG->KR = 0xCCCCu;
+  IWDG->KR = 0x5555u; // 解锁PR/RLR写访问
+  IWDG->PR = 4u;      // LSI约40kHz / 64 ≈ 625Hz计数
+  IWDG->RLR = 625u;   // 约1s超时
+  uint32_t iwdg_sync_start = HAL_GetTick();
+  while ((IWDG->SR & 3u) != 0u && HAL_GetTick() - iwdg_sync_start < 50u)
+    ; // 等待分频与重载值同步生效；超时则放弃看门狗也不卡死
+  iwdg_feed();
   uint32_t ramp_start = HAL_GetTick();
   while (motor_fault == MOTOR_FAULT_NONE)
   {
+    iwdg_feed();
     uint32_t elapsed = HAL_GetTick() - ramp_start;
     if (elapsed >= SPEED_RAMP_MS)
     {
@@ -267,6 +310,7 @@ int main(void)
   // 理论讲解以及FOC代码逐步实现讲解请前往查看：https://blog.csdn.net/qq570437459/category_12672491.html
   while (1)
   {
+    iwdg_feed();
     if (motor_fault == MOTOR_FAULT_NONE)
     {
       uint32_t now = HAL_GetTick();

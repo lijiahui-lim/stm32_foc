@@ -82,12 +82,6 @@ void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 2 */
-#include "motor/motor_runtime_param.h"
-
-void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
-{
-  if (GPIO_Pin == TIM1_Break_Pin)
-    motor_stop(MOTOR_FAULT_DRIVER);
-}
+// nFAULT的EXTI回调集中在 Drivers/motor/motor_isr.c
 
 /* USER CODE END 2 */

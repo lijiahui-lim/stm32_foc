@@ -51,6 +51,7 @@ Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_tim.c \
 Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_tim_ex.c \
 Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_uart.c \
 Drivers/motor/foc.c \
+Drivers/motor/motor_isr.c \
 Drivers/motor/motor_runtime_param.c \
 algorithm/filter.c \
 Drivers/CMSIS/DSP/Source/ControllerFunctions/arm_pid_init_f32.c \

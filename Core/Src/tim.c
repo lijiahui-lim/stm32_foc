@@ -169,7 +169,7 @@ void HAL_TIM_Base_MspInit(TIM_HandleTypeDef *tim_baseHandle)
     __HAL_RCC_TIM3_CLK_ENABLE();
 
     /* TIM3 interrupt Init */
-    HAL_NVIC_SetPriority(TIM3_IRQn, 1, 0);
+    HAL_NVIC_SetPriority(TIM3_IRQn, 2, 0);
     HAL_NVIC_EnableIRQ(TIM3_IRQn);
     /* USER CODE BEGIN TIM3_MspInit 1 */
 
@@ -234,46 +234,6 @@ void HAL_TIM_Base_MspDeInit(TIM_HandleTypeDef *tim_baseHandle)
 }
 
 /* USER CODE BEGIN 1 */
-#include "global_def.h"
-#include "motor/motor_runtime_param.h"
-#include "motor/foc.h"
-#include "algorithm/filter.h"
-#include "arm_math.h"
-#include "spi.h"
-void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
-{
-  if (htim->Instance == TIM3)
-  {
-    // 与SPI DMA中断同优先级，读到的是上一帧已经校验过的角度。
-    mt6701_start_read();
-
-    static uint32_t last_frame = 0;
-    static uint32_t last_cycle = 0;
-    static float last_angle = 0.0f;
-    uint32_t frame = mt6701_valid_frame_count;
-    if (frame == last_frame)
-      return; // CRC错误或DMA丢帧时不能把旧角度当作新的零速样本
-
-    uint32_t cycle = mt6701_last_valid_cycle;
-    float angle = encoder_angle;
-    uint32_t elapsed = cycle - last_cycle;
-    if (last_frame != 0u && elapsed != 0u && elapsed <= MT6701_MAX_AGE_CYCLES)
-    {
-      float diff_angle = cycle_diff(angle - last_angle, 2 * PI);
-      float elapsed_seconds = (float)elapsed * (1.0f / 72000000.0f);
-      float raw_speed = diff_angle / elapsed_seconds;
-      // 约10Hz截止频率；按真实采样间隔计算，避免中断延迟造成转速虚高。
-      float alpha = fminf(62.83f * elapsed_seconds, 1.0f);
-      motor_speed = low_pass_filter(raw_speed, motor_speed, alpha);
-    }
-    else if (last_frame != 0u)
-    {
-      motor_speed = 0.0f;
-    }
-    last_frame = frame;
-    last_cycle = cycle;
-    last_angle = angle;
-  }
-}
+// 定时器中断回调集中在 Drivers/motor/motor_isr.c
 
 /* USER CODE END 1 */

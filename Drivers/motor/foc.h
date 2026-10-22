@@ -26,20 +26,12 @@ typedef struct
 extern volatile motor_control_context_t motor_control_context;
 
 float cycle_diff(float diff, float cycle);
-void foc_forward(float d, float q, float rotor_rad);
-void foc_update_rotor_trig(float rotor_rad, float *sin_value, float *cos_value);
 void motor_control_fixed(int16_t i_alpha, int16_t i_beta,
                          int16_t i_d, int16_t i_q,
                          int16_t sin_value, int16_t cos_value);
+// 以下两个函数由板级代码实现（main.c）：写三相PWM比较寄存器
 void set_pwm_duty(float d_u, float d_v, float d_w);
 void set_pwm_duty_q15(uint16_t d_u, uint16_t d_v, uint16_t d_w);
-
-void lib_position_control(float rad);                                                           // 位置（角度）控制
-void lib_speed_control(float speed);                                                            // 速度控制
-void lib_torque_control(float torque_norm_d, float torque_norm_q);                              // 力矩（电流）控制
-void lib_speed_torque_control(float speed, float max_torque_norm);                              // 速度-力矩控制
-void lib_position_speed_torque_control(float position, float max_speed, float max_torque_norm); // 位置-速度-力矩控制
-void lib_align_control(float current_norm, float i_alpha, float i_beta);                       // 限流校零
 
 void set_motor_pid(
     // Ki单位为每秒，Kd单位为秒；函数会按各控制环实际频率离散化。

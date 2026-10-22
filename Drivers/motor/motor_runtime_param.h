@@ -25,4 +25,5 @@ extern volatile uint16_t rotor_zero_raw;   // 定点FOC使用的机械零位
 #define MOTOR_FAULT_CURRENT_SENSOR 5u
 #define MOTOR_FAULT_SUSTAINED_CURRENT 6u
 #define MOTOR_FAULT_DRIVER      7u
+#define MOTOR_FAULT_ALIGN       8u
 extern volatile uint32_t motor_fault;

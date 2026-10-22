@@ -269,10 +269,15 @@ void ADC1_2_IRQHandler(void)
   uint32_t start_cycle = DWT->CYCCNT;
   adc_irq_count++;
   /* USER CODE BEGIN ADC1_2_IRQn 0 */
-
+  // 绕过HAL_ADC_IRQHandler的事件分发：双路注入同时模式只有JEOC一种事件，
+  // 直接清标志调回调，省掉HAL层几百个周期的开销。
+  if ((ADC1->SR & ADC_SR_JEOC) != 0u)
+  {
+    ADC1->SR = ~ADC_SR_JEOC; // F1的SR为rc_w0：写0清除，写1不影响其它位
+    ADC2->SR = ~ADC_SR_JEOC;
+    HAL_ADCEx_InjectedConvCpltCallback(&hadc1);
+  }
   /* USER CODE END ADC1_2_IRQn 0 */
-  HAL_ADC_IRQHandler(&hadc1);
-  HAL_ADC_IRQHandler(&hadc2);
   profile_irq(DWT->CYCCNT - start_cycle, &adc_irq_max_cycles, &adc_irq_avg_cycles);
   /* USER CODE BEGIN ADC1_2_IRQn 1 */
 
