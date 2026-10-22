@@ -41,6 +41,14 @@ extern SPI_HandleTypeDef hspi1;
 void MX_SPI1_Init(void);
 
 /* USER CODE BEGIN Prototypes */
+#define MT6701_MAX_AGE_CYCLES 108000u // 72MHz下1.5ms；以CPU周期检测真实失联时间
+extern volatile uint32_t mt6701_frame_count;
+extern volatile uint32_t mt6701_valid_frame_count;
+extern volatile uint32_t mt6701_sample_tick;
+extern volatile uint32_t mt6701_last_valid_tick;
+extern volatile uint32_t mt6701_last_valid_cycle;
+void mt6701_start_read(void);
+uint8_t mt6701_angle_is_fresh(void);
 
 /* USER CODE END Prototypes */
 

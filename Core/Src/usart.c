@@ -117,7 +117,18 @@ void HAL_UART_MspDeInit(UART_HandleTypeDef* uartHandle)
 int fputc(int c, FILE *stream)
 {
   uint8_t ch[] = {(uint8_t)c};
-  HAL_UART_Transmit(&huart2, ch, 1, HAL_MAX_DELAY);
+  HAL_UART_Transmit(&huart2, ch, 1, 10);
   return c;
+}
+
+// GNU newlib/newlib-nano 的 printf 经由 _write 输出，不调用上面的 fputc。
+int _write(int file, char *data, int length)
+{
+  (void)file;
+  if (length <= 0)
+    return 0;
+  if (HAL_UART_Transmit(&huart2, (uint8_t *)data, (uint16_t)length, 50) != HAL_OK)
+    return -1;
+  return length;
 }
 /* USER CODE END 1 */

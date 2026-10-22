@@ -121,6 +121,9 @@ void HAL_SPI_MspInit(SPI_HandleTypeDef *spiHandle)
 
     __HAL_LINKDMA(spiHandle, hdmatx, hdma_spi1_tx);
 
+    HAL_NVIC_SetPriority(SPI1_IRQn, 1, 0);
+    HAL_NVIC_EnableIRQ(SPI1_IRQn);
+
     /* USER CODE BEGIN SPI1_MspInit 1 */
 
     /* USER CODE END SPI1_MspInit 1 */
@@ -137,6 +140,7 @@ void HAL_SPI_MspDeInit(SPI_HandleTypeDef *spiHandle)
     /* USER CODE END SPI1_MspDeInit 0 */
     /* Peripheral clock disable */
     __HAL_RCC_SPI1_CLK_DISABLE();
+    HAL_NVIC_DisableIRQ(SPI1_IRQn);
 
     /**SPI1 GPIO Configuration
     PA5     ------> SPI1_SCK
@@ -177,57 +181,78 @@ uint8_t calculate_crc(uint32_t data)
   return crc;
 }
 
-uint8_t mt6701_rx_data[3];
+uint8_t mt6701_rx_data[3];                              // 编码器返回的角度帧（RX）
+const uint8_t mt6701_tx_data[3] = {0xFF, 0xFF, 0xFF};   // 固定“读角度”命令（TX），不再复用RX自喂
+volatile uint32_t mt6701_frame_count = 0;               // 每完成一帧+1（可选：调试/心跳）
+volatile uint32_t mt6701_valid_frame_count = 0;
+volatile uint32_t mt6701_sample_tick = 0;
+volatile uint32_t mt6701_last_valid_tick = 0;
+volatile uint32_t mt6701_last_valid_cycle = 0;
+static uint32_t mt6701_active_tick = 0;
+static uint32_t mt6701_active_cycle = 0;
+
+uint8_t mt6701_angle_is_fresh(void)
+{
+  return mt6701_valid_frame_count != 0u &&
+         (DWT->CYCCNT - mt6701_last_valid_cycle) <= MT6701_MAX_AGE_CYCLES;
+}
+
+// 启动“一帧”读取（由定时器确定性驱动，不靠回调自续）
+void mt6701_start_read(void)
+{
+  mt6701_sample_tick++;
+  if (hspi1.State != HAL_SPI_STATE_READY)
+    return; // 上一帧还没结束就跳过，避免重入
+  mt6701_active_tick = mt6701_sample_tick;
+  mt6701_active_cycle = DWT->CYCCNT;
+  HAL_GPIO_WritePin(MT6701_CSN_GPIO_Port, MT6701_CSN_Pin, GPIO_PIN_RESET);
+  if (HAL_SPI_TransmitReceive_DMA(&hspi1, mt6701_tx_data, mt6701_rx_data, 3) != HAL_OK)
+    HAL_GPIO_WritePin(MT6701_CSN_GPIO_Port, MT6701_CSN_Pin, GPIO_PIN_SET);
+}
+
 void HAL_SPI_TxRxCpltCallback(SPI_HandleTypeDef *hspi)
 {
   if (hspi->Instance == SPI1)
   {
-    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_SET);
+    HAL_GPIO_WritePin(MT6701_CSN_GPIO_Port, MT6701_CSN_Pin, GPIO_PIN_SET);
+    mt6701_frame_count++;
     int angle_raw = (mt6701_rx_data[1] >> 2) | (mt6701_rx_data[0] << 6);
 
-    // crc校验，不通过则放弃本次角度数据
+    // crc校验，不通过则本次角度数据作废（下一帧由定时器再触发）
     uint8_t crc_raw = mt6701_rx_data[2] & ((1 << 6) - 1);
     uint32_t crc_data = (mt6701_rx_data[0] << 16 | mt6701_rx_data[1] << 8 | mt6701_rx_data[2]) >> 6;
-    if (calculate_crc(crc_data) != crc_raw)
+    if (calculate_crc(crc_data) == crc_raw)
     {
-      HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_RESET);
-      HAL_SPI_TransmitReceive_DMA(&hspi1, mt6701_rx_data, mt6701_rx_data, 3);
-      return;
-    }
+      encoder_raw = (uint16_t)angle_raw;
+      encoder_angle = 2 * PI * angle_raw / (1 << 14);
 
-    encoder_angle = 2 * PI * angle_raw / (1 << 14);
-
-    static float encoder_angle_last = 0;
-    /****encoder_angle_last默认值是0，不能用于计算，要先赋值一次****/
-    static int once = 1;
-    if (once)
-    {
-      once = !once;
-      encoder_angle_last = encoder_angle;
+      static float encoder_angle_last = 0;
+      /****encoder_angle_last默认值是0，不能用于计算，要先赋值一次****/
+      static int once = 1;
+      if (once)
+      {
+        once = !once;
+        encoder_angle_last = encoder_angle;
+      }
+      /*************/
+      float _encoder_angle = encoder_angle;
+      // 角度差值，用于累计多圈逻辑角度
+      float diff_angle = cycle_diff(_encoder_angle - encoder_angle_last, 2 * PI);
+      encoder_angle_last = _encoder_angle;
+      // 实现周期操作，将motor_logic_angle转到周期内
+      motor_logic_angle = cycle_diff(motor_logic_angle + diff_angle, position_cycle);
+      mt6701_last_valid_tick = mt6701_active_tick;
+      mt6701_last_valid_cycle = mt6701_active_cycle;
+      mt6701_valid_frame_count++;
     }
-    /*************/
-    float _encoder_angle = encoder_angle;
-    // 角度差值，用于累计多圈逻辑角度
-    float diff_angle = cycle_diff(_encoder_angle - encoder_angle_last, 2 * PI);
-    encoder_angle_last = _encoder_angle;
-    // 实现周期操作，将motor_logic_angle转到周期内
-    motor_logic_angle = cycle_diff(motor_logic_angle + diff_angle, position_cycle);
-    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_RESET);
-    HAL_SPI_TransmitReceive_DMA(&hspi1, mt6701_rx_data, mt6701_rx_data, 3);
     return;
   }
 }
 
 void HAL_SPI_ErrorCallback(SPI_HandleTypeDef *hspi)
 {
-  printf("HAL_SPI_ErrorCallback:%d\n", hspi->ErrorCode);
   if (hspi->Instance == SPI1)
-  {
-    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_SET);
-    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_RESET);
-    HAL_SPI_TransmitReceive_DMA(&hspi1, mt6701_rx_data, mt6701_rx_data, 3);
-  }
-  return;
+    HAL_GPIO_WritePin(MT6701_CSN_GPIO_Port, MT6701_CSN_Pin, GPIO_PIN_SET);
 }
 
 /* USER CODE END 1 */

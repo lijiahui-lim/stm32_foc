@@ -51,6 +51,7 @@ extern "C" {
 
 /* Exported functions prototypes ---------------------------------------------*/
 void Error_Handler(void);
+void motor_stop(uint32_t reason);
 
 /* USER CODE BEGIN EFP */
 
@@ -59,6 +60,7 @@ void Error_Handler(void);
 /* Private defines -----------------------------------------------------------*/
 #define speed_calc_freq motor_speed_calc_freq
 #define pwm_freq motor_pwm_freq
+#define control_freq motor_control_freq
 #define MT6701_CSN_Pin GPIO_PIN_4
 #define MT6701_CSN_GPIO_Port GPIOA
 #define TIM1_Break_Pin GPIO_PIN_12

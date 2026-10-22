@@ -41,6 +41,18 @@
 
 /* Private variables ---------------------------------------------------------*/
 /* USER CODE BEGIN PV */
+volatile uint32_t adc_irq_max_cycles;
+volatile uint32_t adc_irq_avg_cycles;
+volatile uint32_t tim3_irq_max_cycles;
+volatile uint32_t tim3_irq_avg_cycles;
+volatile uint32_t dma_rx_irq_max_cycles;
+volatile uint32_t dma_rx_irq_avg_cycles;
+volatile uint32_t dma_tx_irq_max_cycles;
+volatile uint32_t dma_tx_irq_avg_cycles;
+volatile uint32_t adc_irq_count;
+volatile uint32_t tim3_irq_count;
+volatile uint32_t dma_rx_irq_count;
+volatile uint32_t dma_tx_irq_count;
 
 /* USER CODE END PV */
 
@@ -51,6 +63,13 @@
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+static inline void profile_irq(uint32_t cycles, volatile uint32_t *maximum,
+                               volatile uint32_t *average)
+{
+  if (cycles > *maximum)
+    *maximum = cycles;
+  *average += ((int32_t)cycles - (int32_t)*average) / 16;
+}
 
 /* USER CODE END 0 */
 
@@ -59,6 +78,7 @@ extern ADC_HandleTypeDef hadc1;
 extern ADC_HandleTypeDef hadc2;
 extern DMA_HandleTypeDef hdma_spi1_rx;
 extern DMA_HandleTypeDef hdma_spi1_tx;
+extern SPI_HandleTypeDef hspi1;
 extern TIM_HandleTypeDef htim3;
 /* USER CODE BEGIN EV */
 
@@ -207,10 +227,13 @@ void SysTick_Handler(void)
   */
 void DMA1_Channel2_IRQHandler(void)
 {
+  uint32_t start_cycle = DWT->CYCCNT;
+  dma_rx_irq_count++;
   /* USER CODE BEGIN DMA1_Channel2_IRQn 0 */
 
   /* USER CODE END DMA1_Channel2_IRQn 0 */
   HAL_DMA_IRQHandler(&hdma_spi1_rx);
+  profile_irq(DWT->CYCCNT - start_cycle, &dma_rx_irq_max_cycles, &dma_rx_irq_avg_cycles);
   /* USER CODE BEGIN DMA1_Channel2_IRQn 1 */
 
   /* USER CODE END DMA1_Channel2_IRQn 1 */
@@ -221,13 +244,21 @@ void DMA1_Channel2_IRQHandler(void)
   */
 void DMA1_Channel3_IRQHandler(void)
 {
+  uint32_t start_cycle = DWT->CYCCNT;
+  dma_tx_irq_count++;
   /* USER CODE BEGIN DMA1_Channel3_IRQn 0 */
 
   /* USER CODE END DMA1_Channel3_IRQn 0 */
   HAL_DMA_IRQHandler(&hdma_spi1_tx);
+  profile_irq(DWT->CYCCNT - start_cycle, &dma_tx_irq_max_cycles, &dma_tx_irq_avg_cycles);
   /* USER CODE BEGIN DMA1_Channel3_IRQn 1 */
 
   /* USER CODE END DMA1_Channel3_IRQn 1 */
+}
+
+void SPI1_IRQHandler(void)
+{
+  HAL_SPI_IRQHandler(&hspi1);
 }
 
 /**
@@ -235,11 +266,14 @@ void DMA1_Channel3_IRQHandler(void)
   */
 void ADC1_2_IRQHandler(void)
 {
+  uint32_t start_cycle = DWT->CYCCNT;
+  adc_irq_count++;
   /* USER CODE BEGIN ADC1_2_IRQn 0 */
 
   /* USER CODE END ADC1_2_IRQn 0 */
   HAL_ADC_IRQHandler(&hadc1);
   HAL_ADC_IRQHandler(&hadc2);
+  profile_irq(DWT->CYCCNT - start_cycle, &adc_irq_max_cycles, &adc_irq_avg_cycles);
   /* USER CODE BEGIN ADC1_2_IRQn 1 */
 
   /* USER CODE END ADC1_2_IRQn 1 */
@@ -250,10 +284,13 @@ void ADC1_2_IRQHandler(void)
   */
 void TIM3_IRQHandler(void)
 {
+  uint32_t start_cycle = DWT->CYCCNT;
+  tim3_irq_count++;
   /* USER CODE BEGIN TIM3_IRQn 0 */
 
   /* USER CODE END TIM3_IRQn 0 */
   HAL_TIM_IRQHandler(&htim3);
+  profile_irq(DWT->CYCCNT - start_cycle, &tim3_irq_max_cycles, &tim3_irq_avg_cycles);
   /* USER CODE BEGIN TIM3_IRQn 1 */
 
   /* USER CODE END TIM3_IRQn 1 */

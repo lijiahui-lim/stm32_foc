@@ -44,6 +44,7 @@ void MX_ADC1_Init(void);
 void MX_ADC2_Init(void);
 
 /* USER CODE BEGIN Prototypes */
+extern volatile uint8_t motor_current_offset_ready;
 
 /* USER CODE END Prototypes */
 

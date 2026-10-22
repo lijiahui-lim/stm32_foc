@@ -2,7 +2,7 @@
 
 float low_pass_filter(float input, float last_output, float alpha)
 {
-    return alpha * input + (1.0 - alpha) * last_output;
+    return alpha * input + (1.0f - alpha) * last_output;
 }
 
 float kalman_filter_std(float input, float r, float q)
@@ -13,6 +13,6 @@ float kalman_filter_std(float input, float r, float q)
     p = p + q;
     g = p / (p + r);
     z = z + g * (input - z);
-    p = (1 - g) * p;
+    p = (1.0f - g) * p;
     return z;
 }

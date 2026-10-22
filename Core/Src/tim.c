@@ -46,9 +46,11 @@ void MX_TIM1_Init(void)
   htim1.Instance = TIM1;
   htim1.Init.Prescaler = 0;
   htim1.Init.CounterMode = TIM_COUNTERMODE_CENTERALIGNED3;
-  htim1.Init.Period = (72 * 1000000 / motor_pwm_freq);
+  // 中心对齐模式每个PWM周期计数上下各一次。
+  htim1.Init.Period = (72 * 1000000 / (2 * motor_pwm_freq));
   htim1.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-  htim1.Init.RepetitionCounter = 4;
+  // 在固定计数边界触发ADC；Q15定点FOC以8kHz运行。
+  htim1.Init.RepetitionCounter = (2 * motor_pwm_freq / motor_control_freq) - 1;
   htim1.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
   if (HAL_TIM_Base_Init(&htim1) != HAL_OK)
   {
@@ -92,7 +94,7 @@ void MX_TIM1_Init(void)
   sBreakDeadTimeConfig.OffStateIDLEMode = TIM_OSSI_DISABLE;
   sBreakDeadTimeConfig.LockLevel = TIM_LOCKLEVEL_1;
   sBreakDeadTimeConfig.DeadTime = 0;
-  sBreakDeadTimeConfig.BreakState = TIM_BREAK_DISABLE;
+  sBreakDeadTimeConfig.BreakState = TIM_BREAK_ENABLE; // PB12接DRV8313低有效nFAULT
   sBreakDeadTimeConfig.BreakPolarity = TIM_BREAKPOLARITY_LOW;
   sBreakDeadTimeConfig.AutomaticOutput = TIM_AUTOMATICOUTPUT_DISABLE;
   if (HAL_TIMEx_ConfigBreakDeadTime(&htim1, &sBreakDeadTimeConfig) != HAL_OK)
@@ -121,7 +123,7 @@ void MX_TIM3_Init(void)
   htim3.Instance = TIM3;
   htim3.Init.Prescaler = 72 - 1;
   htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim3.Init.Period = 1000000 / speed_calc_freq;
+  htim3.Init.Period = 1000000 / speed_calc_freq - 1;
   htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim3) != HAL_OK)
@@ -237,26 +239,40 @@ void HAL_TIM_Base_MspDeInit(TIM_HandleTypeDef *tim_baseHandle)
 #include "motor/foc.h"
 #include "algorithm/filter.h"
 #include "arm_math.h"
+#include "spi.h"
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
   if (htim->Instance == TIM3)
   {
-    static float encoder_angle_last = 0;
+    // 与SPI DMA中断同优先级，读到的是上一帧已经校验过的角度。
+    mt6701_start_read();
 
-    /******encoder_angle_last默认值是0，不能用于计算，需要赋初值*********/
-    static int once = 1;
-    if (once)
+    static uint32_t last_frame = 0;
+    static uint32_t last_cycle = 0;
+    static float last_angle = 0.0f;
+    uint32_t frame = mt6701_valid_frame_count;
+    if (frame == last_frame)
+      return; // CRC错误或DMA丢帧时不能把旧角度当作新的零速样本
+
+    uint32_t cycle = mt6701_last_valid_cycle;
+    float angle = encoder_angle;
+    uint32_t elapsed = cycle - last_cycle;
+    if (last_frame != 0u && elapsed != 0u && elapsed <= MT6701_MAX_AGE_CYCLES)
     {
-      once = !once;
-      encoder_angle_last = encoder_angle;
+      float diff_angle = cycle_diff(angle - last_angle, 2 * PI);
+      float elapsed_seconds = (float)elapsed * (1.0f / 72000000.0f);
+      float raw_speed = diff_angle / elapsed_seconds;
+      // 约10Hz截止频率；按真实采样间隔计算，避免中断延迟造成转速虚高。
+      float alpha = fminf(62.83f * elapsed_seconds, 1.0f);
+      motor_speed = low_pass_filter(raw_speed, motor_speed, alpha);
     }
-    /***************/
-
-    float diff_angle = cycle_diff(encoder_angle - encoder_angle_last, 2 * PI);
-    encoder_angle_last = encoder_angle;
-    float _motor_speed = diff_angle * motor_speed_calc_freq;
-    float filter_alpha_speed = 0.07; // 低通滤波参数，如果希望保留更多的细节，可以增加alpha值
-    motor_speed = low_pass_filter(_motor_speed, motor_speed, filter_alpha_speed);
+    else if (last_frame != 0u)
+    {
+      motor_speed = 0.0f;
+    }
+    last_frame = frame;
+    last_cycle = cycle;
+    last_angle = angle;
   }
 }
 
