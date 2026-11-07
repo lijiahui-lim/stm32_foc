@@ -45,9 +45,9 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define TARGET_SPEED_RPM 1200.0f
+#define TARGET_SPEED_RPM 2000.0f
 #define TARGET_SPEED_RAD_S (TARGET_SPEED_RPM * 2.0f * PI / 60.0f)
-#define SPEED_RAMP_MS 1570u // 维持原来约80 rad/s²的加速斜率
+#define SPEED_RAMP_MS 2620u // 维持原来约80 rad/s²的加速斜率
 #define STALL_TIMEOUT_MS 2000u
 #define STARTUP_STILL_MS 100u
 #define STARTUP_STILL_TIMEOUT_MS 2000u

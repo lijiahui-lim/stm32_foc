@@ -193,8 +193,12 @@ static uint32_t mt6701_active_cycle = 0;
 
 uint8_t mt6701_angle_is_fresh(void)
 {
+  // 先快照ISR更新时间，再读当前时间。反过来读取时，DMA可能在两次
+  // 读取之间写入一个更晚的时间戳，导致无符号减法下溢并误报失联。
+  uint32_t last_valid_cycle = mt6701_last_valid_cycle;
+  uint32_t now = DWT->CYCCNT;
   return mt6701_valid_frame_count != 0u &&
-         (DWT->CYCCNT - mt6701_last_valid_cycle) <= MT6701_MAX_AGE_CYCLES;
+         (now - last_valid_cycle) <= MT6701_MAX_AGE_CYCLES;
 }
 
 // 启动“一帧”读取（由定时器确定性驱动，不靠回调自续）
